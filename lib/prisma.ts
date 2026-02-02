@@ -3,16 +3,11 @@ import { withAccelerate } from "@prisma/extension-accelerate";
 
 const globalForPrisma = global as unknown as { prisma: any };
 
+// Inisialisasi tanpa argumen karena file kustom kamu menolak 'datasources'
+// Prisma akan otomatis mencari variabel lingkungan DATABASE_URL
 export const prisma =
   globalForPrisma.prisma ||
-  new PrismaClient({
-    // Gunakan objek datasources untuk menyuntikkan URL Accelerate
-    datasources: {
-      db: {
-        url: process.env.DATABASE_URL, 
-      },
-    },
-  } as any).$extends(withAccelerate()); // Tambahkan 'as any' jika tipe 'datasources' ditolak
+  new PrismaClient().$extends(withAccelerate());
 
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
 
