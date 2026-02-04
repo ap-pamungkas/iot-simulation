@@ -11,6 +11,8 @@ import {
   ResponsiveContainer, AreaChart, Area 
 } from "recharts";
 
+import StatCard from "@/components/ui/StatCard";
+
 interface Log {
   temperature: number;
   humidity: number;
@@ -275,9 +277,6 @@ export default function SmartFarmingPage() {
                   {error}
                 </div>
               )}
-
-          
-
               {/* Form Input Durasi */}
               <div className="space-y-4 mb-6">
                 <div className={`p-4 rounded-2xl border border-dashed transition-colors ${isPumpOn ? 'bg-muted/50 border-muted' : 'bg-muted/30 border-border'}`}>
@@ -368,20 +367,20 @@ export default function SmartFarmingPage() {
   );
 }
 
-function StatCard({ title, value, icon, status = "normal", type }: any) {
-  return (
-    <div className="card-iot">
-      <div className="flex justify-between items-start mb-6">
-        <div className={`icon-container ${type === 'farming' ? 'icon-container-farming' : 'icon-container-home'}`}>
-          {icon}
-        </div>
-        <span className={`status-badge ${status === 'normal' ? 'status-normal' : 'status-warning'}`}>
-          <div className="pulse-dot" />
-          {status.toUpperCase()}
-        </span>
-      </div>
-      <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">{title}</p>
-      <h3 className="text-4xl font-black mt-1 tracking-tight">{value}</h3>
-    </div>
-  );
-}
+// function StatCard({ title, value, icon, status = "normal", type }: any) {
+//   return (
+//     <div className="card-iot">
+//       <div className="flex justify-between items-start mb-6">
+//         <div className={`icon-container ${type === 'farming' ? 'icon-container-farming' : 'icon-container-home'}`}>
+//           {icon}
+//         </div>
+//         <span className={`status-badge ${status === 'normal' ? 'status-normal' : 'status-warning'}`}>
+//           <div className="pulse-dot" />
+//           {status.toUpperCase()}
+//         </span>
+//       </div>
+//       <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">{title}</p>
+//       <h3 className="text-4xl font-black mt-1 tracking-tight">{value}</h3>
+//     </div>
+//   );
+// }
