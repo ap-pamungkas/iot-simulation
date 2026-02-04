@@ -29,7 +29,7 @@ interface DeviceData {
 export default function SmartFarmingPage() {
   const [data, setData] = useState<DeviceData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [duration, setDuration] = useState<string>("5");
+  const [duration, setDuration] = useState<any>("5");
   const [isActionLoading, setIsActionLoading] = useState(false);
   const [countdown, setCountdown] = useState<number>(0);
   const [error, setError] = useState<string>("");
