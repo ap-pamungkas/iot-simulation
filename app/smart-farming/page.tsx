@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Navbar from "@/components/Navbar";
 import { 
   Thermometer, Droplets, Sprout, RefreshCcw, 
-  Activity, Timer, ArrowRight, Info
+  Activity, Timer, ArrowRight, Info, AlertCircle
 } from "lucide-react";
 import { 
   XAxis, YAxis, CartesianGrid, Tooltip, 
@@ -14,8 +14,10 @@ import {
 export default function SmartFarmingPage() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [duration, setDuration] = useState(5); // Default penyiraman 5 detik
+  const [duration, setDuration] = useState("5"); // String untuk validasi input
   const [isActionLoading, setIsActionLoading] = useState(false);
+  const [countdown, setCountdown] = useState<number | null>(null);
+  const [inputError, setInputError] = useState("");
 
   const fetchData = async () => {
     try {
@@ -23,7 +25,6 @@ export default function SmartFarmingPage() {
       const res = await fetch("/api/farming");
       const result = await res.json();
       if (result.success) {
-        // Mengambil data device FARM-001 dari database
         setData(result.data[0]); 
       }
     } catch (error) {
@@ -33,22 +34,70 @@ export default function SmartFarmingPage() {
     }
   };
 
-  // FUNGSI PATCH YANG DIPERBAIKI
+  // VALIDASI INPUT
+  const validateDuration = (value: string): boolean => {
+    setInputError("");
+    
+    if (value === "") {
+      setInputError("Durasi wajib diisi");
+      return false;
+    }
+    
+    // Cek apakah hanya berisi angka
+    if (!/^\d+$/.test(value)) {
+      setInputError("Hanya boleh angka");
+      return false;
+    }
+    
+    const num = parseInt(value);
+    if (num < 1) {
+      setInputError("Minimal 1 detik");
+      return false;
+    }
+    if (num > 300) {
+      setInputError("Maksimal 300 detik");
+      return false;
+    }
+    
+    return true;
+  };
+
+  // HANDLE INPUT CHANGE
+  const handleDurationChange = (value: string) => {
+    // Hanya izinkan angka atau string kosong
+    if (value === "" || /^\d+$/.test(value)) {
+      setDuration(value);
+      if (value !== "") {
+        validateDuration(value);
+      } else {
+        setInputError("Durasi wajib diisi");
+      }
+    }
+  };
+
+  // FUNGSI KONTROL POMPA
   const handleSprinkle = async (newState: boolean) => {
     if (!data?.deviceCode) {
       console.error("Device code tidak tersedia");
       return;
     }
 
+    // Validasi sebelum kirim
+    if (!validateDuration(duration)) {
+      return;
+    }
+
+    const durationNum = parseInt(duration);
     setIsActionLoading(true);
+    
     try {
       const res = await fetch("/api/farming", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
-          deviceCode: data.deviceCode,  // WAJIB: kirim deviceCode
-          pumpStatus: newState,          // PERBAIKAN: gunakan pumpStatus, bukan status
-          duration: duration             // Kirim durasi kustom
+          deviceCode: data.deviceCode,
+          pumpStatus: newState,
+          duration: durationNum
         }),
       });
       
@@ -58,7 +107,13 @@ export default function SmartFarmingPage() {
         throw new Error(result.message || "Gagal mengupdate status pompa");
       }
       
-      fetchData();
+      // Jika pompa dinyalakan, mulai countdown
+      if (newState) {
+        setCountdown(durationNum);
+      }
+      
+      // Refresh data segera
+      await fetchData();
     } catch (error) {
       console.error("Gagal kontrol pompa:", error);
     } finally {
@@ -66,17 +121,42 @@ export default function SmartFarmingPage() {
     }
   };
 
+  // COUNTDOWN TIMER
+  useEffect(() => {
+    if (countdown === null || countdown <= 0) {
+      if (countdown === 0) {
+        // Ketika countdown habis, refresh status
+        fetchData();
+        setCountdown(null);
+      }
+      return;
+    }
+
+    const timer = setInterval(() => {
+      setCountdown(prev => {
+        if (prev === null || prev <= 0) return null;
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [countdown]);
+
+  // POLLING STATUS LEBIH RESPONSIF
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 30000);
+    
+    // Polling lebih cepat saat pompa aktif (setiap 2 detik)
+    // Polling normal saat pompa mati (setiap 30 detik)
+    const interval = setInterval(fetchData, data?.pumpStatus ? 2000 : 30000);
+    
     return () => clearInterval(interval);
-  }, []);
+  }, [data?.pumpStatus]);
 
   const latestLog = data?.logs?.[0] || { temperature: 0, humidity: 0, soilMoisture: 0 };
   const isPumpOn = data?.pumpStatus || false;
   
-  // PERBAIKAN KONVERSI SOIL MOISTURE (dibalik)
-  // Sensor P34: 1500 = kering (0%), 4095 = basah (100%)
+  // Konversi Soil Moisture
   const soilPercentage = Math.max(0, Math.min(100, 
     Math.round(((latestLog.soilMoisture - 1500) / (4095 - 1500)) * 100)
   ));
@@ -145,7 +225,6 @@ export default function SmartFarmingPage() {
             <div className="card-iot border-2 border-primary/20">
               <div className="flex items-center gap-2 mb-6">
                 <div className="icon-container icon-container-farming">
-                  {/* PERUBAHAN: Ganti Power dengan ArrowRight */}
                   <ArrowRight size={22} />
                 </div>
                 <div>
@@ -157,20 +236,30 @@ export default function SmartFarmingPage() {
               {/* Form Input Durasi */}
               <div className="space-y-4 mb-8">
                 <div className="p-4 bg-muted/30 rounded-2xl border border-dashed border-border">
-                  <label className="text-[10px] font-black text-muted-foreground uppercase mb-2 block tracking-tighter">Set Waktu Siram (Detik)</label>
+                  <label className="text-[10px] font-black text-muted-foreground uppercase mb-2 block tracking-tighter">
+                    Set Waktu Siram (Detik) <span className="text-destructive">*</span>
+                  </label>
                   <div className="flex items-center gap-3">
                     <div className="relative flex-1">
                       <Timer size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-primary" />
                       <input 
-                        type="number" 
-                        min={1}
-                        max={300}
+                        type="text" 
                         value={duration}
-                        onChange={(e) => setDuration(Math.max(1, parseInt(e.target.value) || 5))}
-                        className="w-full bg-background border-border border rounded-xl py-3 pl-10 pr-4 focus:ring-2 focus:ring-primary text-lg font-black"
+                        onChange={(e) => handleDurationChange(e.target.value)}
+                        placeholder="Masukkan durasi"
+                        className={`w-full bg-background border rounded-xl py-3 pl-10 pr-4 focus:ring-2 focus:ring-primary text-lg font-black ${
+                          inputError ? 'border-destructive' : 'border-border'
+                        }`}
+                        disabled={isActionLoading || isPumpOn}
                       />
                     </div>
                   </div>
+                  {inputError && (
+                    <div className="flex items-center gap-1 mt-2 text-destructive text-xs">
+                      <AlertCircle size={12} />
+                      <span>{inputError}</span>
+                    </div>
+                  )}
                 </div>
                 
                 <div className="flex items-start gap-2 text-[11px] text-muted-foreground bg-accent/50 p-3 rounded-lg">
@@ -179,21 +268,54 @@ export default function SmartFarmingPage() {
                 </div>
               </div>
 
-              {/* Tombol Toggle Switch Manual */}
-              <div className="flex items-center justify-between p-5 bg-muted/50 rounded-2xl">
-                <div>
-                  <p className="text-xs font-bold text-muted-foreground uppercase">Status Relay</p>
-                  <span className={`text-sm font-black ${isPumpOn ? 'text-primary' : ''}`}>
-                    {isPumpOn ? "POMPA AKTIF" : "POMPA MATI"}
+              {/* COUNTDOWN DISPLAY */}
+              {countdown !== null && countdown > 0 && (
+                <div className="mb-6 p-4 bg-primary/10 border-2 border-primary rounded-2xl">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 bg-primary rounded-full animate-pulse" />
+                      <span className="text-sm font-bold text-primary">Pompa Aktif</span>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs text-muted-foreground">Sisa Waktu</p>
+                      <p className="text-2xl font-black text-primary">{countdown}s</p>
+                    </div>
+                  </div>
+                  <div className="mt-3 h-2 bg-background rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-primary transition-all duration-1000 ease-linear"
+                      style={{ 
+                        width: `${((parseInt(duration) - countdown) / parseInt(duration)) * 100}%` 
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Tombol Aksi */}
+              <div className="space-y-3">
+                <button 
+                  disabled={isActionLoading || !!inputError || duration === "" || isPumpOn}
+                  onClick={() => handleSprinkle(true)}
+                  className={`w-full py-4 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all ${
+                    isPumpOn 
+                      ? 'bg-primary text-primary-foreground cursor-not-allowed opacity-60' 
+                      : isActionLoading || !!inputError || duration === ""
+                        ? 'bg-muted text-muted-foreground cursor-not-allowed'
+                        : 'bg-primary text-primary-foreground hover:bg-primary/90 active:scale-95'
+                  }`}
+                >
+                  <ArrowRight size={18} className={isActionLoading ? 'animate-pulse' : ''} />
+                  {isActionLoading ? 'Mengirim...' : isPumpOn ? 'Pompa Sedang Aktif' : 'Aktifkan Pompa'}
+                </button>
+
+                {/* Info Status */}
+                <div className="flex items-center justify-between p-4 bg-muted/50 rounded-xl text-sm">
+                  <span className="text-muted-foreground font-medium">Status Relay</span>
+                  <span className={`font-black ${isPumpOn ? 'text-primary' : 'text-muted-foreground'}`}>
+                    {isPumpOn ? "● ON" : "○ OFF"}
                   </span>
                 </div>
-                <button 
-                  disabled={isActionLoading || !data?.deviceCode}
-                  onClick={() => handleSprinkle(!isPumpOn)}
-                  className={`toggle-switch ${isPumpOn ? 'toggle-switch-on' : 'toggle-switch-off'} ${isActionLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                >
-                  <div className={`toggle-knob ${isPumpOn ? 'toggle-knob-on' : 'toggle-knob-off'}`} />
-                </button>
               </div>
             </div>
 
