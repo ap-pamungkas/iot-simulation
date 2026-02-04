@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Navbar from "@/components/Navbar";
 import { 
   Thermometer, Droplets, Sprout, RefreshCcw, 
-  Activity, Timer, Power, Info
+  Activity, Timer, ArrowRight, Info
 } from "lucide-react";
 import { 
   XAxis, YAxis, CartesianGrid, Tooltip, 
@@ -33,18 +33,32 @@ export default function SmartFarmingPage() {
     }
   };
 
+  // FUNGSI PATCH YANG DIPERBAIKI
   const handleSprinkle = async (newState: boolean) => {
+    if (!data?.deviceCode) {
+      console.error("Device code tidak tersedia");
+      return;
+    }
+
     setIsActionLoading(true);
     try {
       const res = await fetch("/api/farming", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
-          status: newState,
-          duration: duration // Mengirim durasi kustom ke database
+          deviceCode: data.deviceCode,  // WAJIB: kirim deviceCode
+          pumpStatus: newState,          // PERBAIKAN: gunakan pumpStatus, bukan status
+          duration: duration             // Kirim durasi kustom
         }),
       });
-      if (res.ok) fetchData();
+      
+      const result = await res.json();
+      
+      if (!res.ok) {
+        throw new Error(result.message || "Gagal mengupdate status pompa");
+      }
+      
+      fetchData();
     } catch (error) {
       console.error("Gagal kontrol pompa:", error);
     } finally {
@@ -59,14 +73,19 @@ export default function SmartFarmingPage() {
   }, []);
 
   const latestLog = data?.logs?.[0] || { temperature: 0, humidity: 0, soilMoisture: 0 };
-  const isPumpOn = data?.pumpStatus || false; // Sinkronisasi dengan kolom pumpStatus
+  const isPumpOn = data?.pumpStatus || false;
   
-  // Konversi nilai P34 (0-4095) ke Persentase
-  const soilPercentage = Math.max(0, Math.min(100, Math.round(((4095 - latestLog.soilMoisture) / (4095 - 1500)) * 100)));
+  // PERBAIKAN KONVERSI SOIL MOISTURE (dibalik)
+  // Sensor P34: 1500 = kering (0%), 4095 = basah (100%)
+  const soilPercentage = Math.max(0, Math.min(100, 
+    Math.round(((latestLog.soilMoisture - 1500) / (4095 - 1500)) * 100)
+  ));
 
   const chartData = data?.logs?.slice(0, 10).reverse().map((log: any) => ({
     time: new Date(log.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    soil: Math.max(0, Math.min(100, Math.round(((4095 - log.soilMoisture) / (4095 - 1500)) * 100)))
+    soil: Math.max(0, Math.min(100, 
+      Math.round(((log.soilMoisture - 1500) / (4095 - 1500)) * 100)
+    ))
   }));
 
   return (
@@ -126,7 +145,8 @@ export default function SmartFarmingPage() {
             <div className="card-iot border-2 border-primary/20">
               <div className="flex items-center gap-2 mb-6">
                 <div className="icon-container icon-container-farming">
-                  <Power size={22} />
+                  {/* PERUBAHAN: Ganti Power dengan ArrowRight */}
+                  <ArrowRight size={22} />
                 </div>
                 <div>
                   <h3 className="font-bold text-lg">Kontrol Irigasi</h3>
@@ -143,8 +163,10 @@ export default function SmartFarmingPage() {
                       <Timer size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-primary" />
                       <input 
                         type="number" 
+                        min={1}
+                        max={300}
                         value={duration}
-                        onChange={(e) => setDuration(parseInt(e.target.value))}
+                        onChange={(e) => setDuration(Math.max(1, parseInt(e.target.value) || 5))}
                         className="w-full bg-background border-border border rounded-xl py-3 pl-10 pr-4 focus:ring-2 focus:ring-primary text-lg font-black"
                       />
                     </div>
@@ -166,7 +188,7 @@ export default function SmartFarmingPage() {
                   </span>
                 </div>
                 <button 
-                  disabled={isActionLoading}
+                  disabled={isActionLoading || !data?.deviceCode}
                   onClick={() => handleSprinkle(!isPumpOn)}
                   className={`toggle-switch ${isPumpOn ? 'toggle-switch-on' : 'toggle-switch-off'} ${isActionLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
