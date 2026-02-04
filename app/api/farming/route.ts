@@ -105,3 +105,77 @@ export async function GET() {
         );
     }
 }
+
+
+
+export async function PATCH(req: Request) {
+  try {
+    const body = await req.json();
+
+    const {
+      deviceCode,
+      pumpStatus,
+      duration,
+    } = body;
+
+    // 1. Validasi dasar
+    if (!deviceCode || typeof pumpStatus !== "boolean") {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "deviceCode dan pumpStatus wajib diisi",
+        },
+        { status: 400 }
+      );
+    }
+
+    // 2. Cari device berdasarkan deviceCode
+    const device = await prisma.device.findUnique({
+      where: { deviceCode },
+    });
+
+    if (!device) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: `Device dengan kode ${deviceCode} tidak ditemukan`,
+        },
+        { status: 404 }
+      );
+    }
+
+    // 3. Update device
+    const updatedDevice = await prisma.device.update({
+      where: { deviceCode },
+      data: {
+        pumpStatus: pumpStatus,
+        duration: typeof duration === "number" ? duration : device.duration,
+        lastSeen: new Date(),
+      },
+    });
+
+    return NextResponse.json(
+      {
+        success: true,
+        message: "Status pompa berhasil diperbarui",
+        data: {
+          deviceCode: updatedDevice.deviceCode,
+          pumpStatus: updatedDevice.pumpStatus,
+          duration: updatedDevice.duration,
+        },
+      },
+      { status: 200 }
+    );
+  } catch (error: any) {
+    console.error("[PATCH /api/farming]", error.message);
+
+    return NextResponse.json(
+      {
+        success: false,
+        message: "Internal Server Error",
+        details: error.message,
+      },
+      { status: 500 }
+    );
+  }
+}
