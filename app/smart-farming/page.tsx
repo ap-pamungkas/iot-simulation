@@ -16,7 +16,7 @@ import StatCard from "@/components/ui/StatCard";
 interface Log {
   temperature: number;
   humidity: number;
-  soilMoisture: number;
+  soilMoisture: number; // Bisa dalam format raw (0-4095) atau sudah persen (0-100)
   createdAt: string;
 }
 
@@ -31,7 +31,7 @@ interface DeviceData {
 export default function SmartFarmingPage() {
   const [data, setData] = useState<DeviceData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [duration, setDuration] = useState<any>("5");
+  const [duration, setDuration] = useState<string>("5");
   const [isActionLoading, setIsActionLoading] = useState(false);
   const [countdown, setCountdown] = useState<number>(0);
   const [error, setError] = useState<string>("");
@@ -50,11 +50,15 @@ export default function SmartFarmingPage() {
         
         // Jika pompa aktif di backend, sync countdown
         if (deviceData.pumpStatus && deviceData.duration > 0) {
-          // Estimate sisa waktu berdasarkan lastSeen dan duration
           const lastSeen = new Date(deviceData.lastSeen).getTime();
           const elapsed = Math.floor((Date.now() - lastSeen) / 1000);
           const remaining = Math.max(0, deviceData.duration - elapsed);
           setCountdown(remaining);
+          
+          // Jika sudah habis tapi backend masih bilang ON, force refresh
+          if (remaining === 0 && deviceData.pumpStatus) {
+            setTimeout(fetchData, 2000);
+          }
         } else {
           setCountdown(0);
         }
@@ -67,18 +71,17 @@ export default function SmartFarmingPage() {
     }
   }, []);
 
-  // Polling interval - lebih cepat saat countdown aktif
+  // Polling interval
   useEffect(() => {
     fetchData();
     
-    // Interval dinamis: 1 detik saat countdown, 30 detik saat idle
     const intervalTime = countdown > 0 ? 1000 : 30000;
     const interval = setInterval(fetchData, intervalTime);
     
     return () => clearInterval(interval);
   }, [countdown, fetchData]);
 
-  // Countdown timer effect
+  // Local countdown timer (visual only)
   useEffect(() => {
     let timer: NodeJS.Timeout;
     
@@ -86,8 +89,6 @@ export default function SmartFarmingPage() {
       timer = setInterval(() => {
         setCountdown((prev) => {
           if (prev <= 1) {
-            // Auto refresh saat countdown habis
-            fetchData();
             return 0;
           }
           return prev - 1;
@@ -96,7 +97,7 @@ export default function SmartFarmingPage() {
     }
     
     return () => clearInterval(timer);
-  }, [countdown, fetchData]);
+  }, [countdown]);
 
   // Validasi input durasi
   const validateDuration = (value: string): boolean => {
@@ -104,14 +105,13 @@ export default function SmartFarmingPage() {
     const num = parseInt(value);
     if (isNaN(num)) return false;
     if (num < 1) return false;
-    if (num > 300) return false; // Max 5 menit
+    if (num > 300) return false;
     return true;
   };
 
   const handleDurationChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     
-    // Hanya izinkan angka
     if (value !== "" && !/^\d+$/.test(value)) {
       return;
     }
@@ -121,7 +121,6 @@ export default function SmartFarmingPage() {
   };
 
   const handleSprinkle = async () => {
-    // Validasi wajib isi dan angka
     if (!validateDuration(duration)) {
       setError("Durasi wajib diisi dengan angka (1-300 detik)");
       return;
@@ -133,8 +132,8 @@ export default function SmartFarmingPage() {
     }
 
     const durationNum = parseInt(duration);
-    const newState = !data?.pumpStatus; // Toggle state
-
+    
+    // PERUBAHAN: Selalu ON, tidak toggle
     setIsActionLoading(true);
     setError("");
     
@@ -144,8 +143,8 @@ export default function SmartFarmingPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           deviceCode: data.deviceCode,
-          pumpStatus: newState,
-          duration: newState ? durationNum : 0 // Kirim 0 jika mematikan
+          pumpStatus: true, // SELALU true untuk menyalakan
+          duration: durationNum
         }),
       });
       
@@ -155,21 +154,16 @@ export default function SmartFarmingPage() {
         throw new Error(result.message || "Gagal mengupdate status pompa");
       }
       
-      // Update local state optimistically
-      if (newState) {
-        setCountdown(durationNum);
-      } else {
-        setCountdown(0);
-      }
+      // Set countdown
+      setCountdown(durationNum);
       
-      // Refresh data untuk konfirmasi
+      // Refresh data
       await fetchData();
       
     } catch (error: any) {
       console.error("Gagal kontrol pompa:", error);
       setError(error.message || "Gagal mengontrol pompa");
-      // Revert countdown jika gagal
-      fetchData();
+      setCountdown(0);
     } finally {
       setIsActionLoading(false);
     }
@@ -177,20 +171,45 @@ export default function SmartFarmingPage() {
 
   const latestLog = data?.logs?.[0] || { temperature: 0, humidity: 0, soilMoisture: 0 };
   
-  // Status pompa dari backend (source of truth)
   const isPumpOn = data?.pumpStatus || false;
+  const isPumpRunning = isPumpOn || countdown > 0; // Gabungkan status backend dan local countdown
   
-  // Konversi soil moisture (1500 = kering/0%, 4095 = basah/100%)
-  const soilPercentage = Math.max(0, Math.min(100, 
-    Math.round(((latestLog.soilMoisture - 1500) / (4095 - 1500)) * 100)
-  ));
+  // PERBAIKAN KONVERSI SOIL MOISTURE
+  // Cek apakah nilai sudah dalam persen (0-100) atau masih raw (0-4095)
+  const rawSoilValue = latestLog.soilMoisture;
+  let soilPercentage: number;
+  
+  if (rawSoilValue >= 0 && rawSoilValue <= 100) {
+    // Sudah dalam format persen (0-100)
+    soilPercentage = rawSoilValue;
+  } else if (rawSoilValue > 100 && rawSoilValue <= 4095) {
+    // Format raw P34 (1500 = kering/0%, 4095 = basah/100%)
+    soilPercentage = Math.max(0, Math.min(100, 
+      Math.round(((rawSoilValue - 1500) / (4095 - 1500)) * 100)
+    ));
+  } else {
+    // Error/invalid value
+    soilPercentage = 0;
+  }
 
-  const chartData = data?.logs?.slice(0, 10).reverse().map((log: Log) => ({
-    time: new Date(log.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    soil: Math.max(0, Math.min(100, 
-      Math.round(((log.soilMoisture - 1500) / (4095 - 1500)) * 100)
-    ))
-  }));
+  const chartData = data?.logs?.slice(0, 10).reverse().map((log: Log) => {
+    let soilValue: number;
+    
+    if (log.soilMoisture >= 0 && log.soilMoisture <= 100) {
+      soilValue = log.soilMoisture;
+    } else if (log.soilMoisture > 100 && log.soilMoisture <= 4095) {
+      soilValue = Math.max(0, Math.min(100, 
+        Math.round(((log.soilMoisture - 1500) / (4095 - 1500)) * 100)
+      ));
+    } else {
+      soilValue = 0;
+    }
+    
+    return {
+      time: new Date(log.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      soil: soilValue
+    };
+  });
 
   return (
     <div className="min-h-screen bg-background">
@@ -250,10 +269,10 @@ export default function SmartFarmingPage() {
 
           {/* SISI KANAN: Kontrol & Konfigurasi */}
           <div className="space-y-6">
-            <div className={`card-iot border-2 transition-colors duration-300 ${isPumpOn ? 'border-primary/50 bg-primary/5' : 'border-primary/20'}`}>
+            <div className={`card-iot border-2 transition-colors duration-300 ${isPumpRunning ? 'border-primary/50 bg-primary/5' : 'border-primary/20'}`}>
               <div className="flex items-center gap-3 mb-6">
-                <div className={`icon-container transition-all duration-300 ${isPumpOn ? 'icon-container-farming scale-110' : 'icon-container-farming'}`}>
-                  {isPumpOn ? (
+                <div className={`icon-container transition-all duration-300 ${isPumpRunning ? 'icon-container-farming scale-110' : 'icon-container-farming'}`}>
+                  {isPumpRunning ? (
                     <div className="animate-pulse">
                       <ArrowRight size={22} className="text-primary" />
                     </div>
@@ -264,32 +283,65 @@ export default function SmartFarmingPage() {
                 <div className="flex-1">
                   <h3 className="font-bold text-lg">Kontrol Irigasi</h3>
                   <p className="text-xs text-muted-foreground uppercase font-bold tracking-widest">
-                    {isPumpOn ? "SEDANG MENYIRAM" : "AKSI MANUAL"}
+                    {isPumpRunning ? "SEDANG MENYIRAM" : "AKSI MANUAL"}
                   </p>
                 </div>
-                {/* Indicator status */}
-                <div className={`w-3 h-3 rounded-full ${isPumpOn ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
+                <div className={`w-3 h-3 rounded-full ${isPumpRunning ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
               </div>
 
-              {/* Error Message */}
               {error && (
                 <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-lg text-xs font-medium">
                   {error}
                 </div>
               )}
+
+              {/* Countdown Display */}
+              {isPumpRunning && countdown > 0 && (
+                <div className="mb-6 p-4 bg-primary/10 rounded-2xl border border-primary/20">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-black text-primary uppercase">Sisa Waktu</span>
+                    <span className="text-2xl font-black text-primary tabular-nums">
+                      {Math.floor(countdown / 60).toString().padStart(2, '0')}:
+                      {(countdown % 60).toString().padStart(2, '0')}
+                    </span>
+                  </div>
+                  <div className="w-full bg-primary/20 rounded-full h-2 overflow-hidden">
+                    <div 
+                      className="bg-primary h-full rounded-full transition-all duration-1000 ease-linear"
+                      style={{ 
+                        width: `${(countdown / (parseInt(duration) || 5)) * 100}%` 
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Status jika pompa ON tapi countdown habis (menunggu backend sync) */}
+              {isPumpOn && countdown === 0 && (
+                <div className="mb-6 p-4 bg-yellow-100 rounded-2xl border border-yellow-300">
+                  <div className="flex items-center gap-2 text-yellow-800">
+                    <Loader2 size={16} className="animate-spin" />
+                    <span className="text-xs font-bold">Menyelesaikan siklus...</span>
+                  </div>
+                </div>
+              )}
+
               {/* Form Input Durasi */}
               <div className="space-y-4 mb-6">
-                <div className={`p-4 rounded-2xl border border-dashed transition-colors ${isPumpOn ? 'bg-muted/50 border-muted' : 'bg-muted/30 border-border'}`}>
+                <div className={`p-4 rounded-2xl border border-dashed transition-colors ${isPumpRunning ? 'bg-muted/50 border-muted' : 'bg-muted/30 border-border'}`}>
+                  <label className="text-[10px] font-black text-muted-foreground uppercase mb-2 block tracking-tighter">
+                    Set Waktu Siram (Detik)
+                  </label>
                   <div className="flex items-center gap-3">
                     <div className="relative flex-1">
-                      <Timer size={18} className={`absolute left-3 top-1/2 -translate-y-1/2 ${isPumpOn ? 'text-primary' : 'text-muted-foreground'}`} />
+                      <Timer size={18} className={`absolute left-3 top-1/2 -translate-y-1/2 ${isPumpRunning ? 'text-primary' : 'text-muted-foreground'}`} />
                       <input 
                         type="text" 
                         inputMode="numeric"
                         pattern="[0-9]*"
                         value={duration}
                         onChange={handleDurationChange}
-                        disabled={isPumpOn || isActionLoading}
+                        disabled={isPumpRunning || isActionLoading}
                         placeholder="5"
                         className={`w-full bg-background border rounded-xl py-3 pl-10 pr-4 text-lg font-black transition-all ${
                           error && !validateDuration(duration) 
@@ -299,7 +351,6 @@ export default function SmartFarmingPage() {
                       />
                     </div>
                   </div>
-                  {/* Validation hint */}
                   <p className="text-[10px] text-muted-foreground mt-2">
                     Min: 1 detik | Max: 300 detik (5 menit)
                   </p>
@@ -308,35 +359,32 @@ export default function SmartFarmingPage() {
                 <div className="flex items-start gap-2 text-[11px] text-muted-foreground bg-accent/50 p-3 rounded-lg">
                   <Info size={14} className="shrink-0 mt-0.5" />
                   <p>
-                    {isPumpOn 
-                      ? "Pompa aktif. Matikan secara manual atau tunggu otomatis." 
+                    {isPumpRunning 
+                      ? "Pompa sedang aktif. Tunggu hingga selesai." 
                       : "Pompa akan mati otomatis oleh ESP32 setelah durasi tercapai."}
                   </p>
                 </div>
               </div>
 
-              {/* Tombol Aksi */}
+              {/* Tombol Aksi - DISABLED saat pompa running */}
               <button 
-                disabled={isActionLoading || (!isPumpOn && !validateDuration(duration))}
+                disabled={isPumpRunning || isActionLoading || !validateDuration(duration)}
                 onClick={handleSprinkle}
                 className={`w-full py-4 px-6 rounded-2xl font-black text-sm uppercase tracking-widest transition-all duration-300 flex items-center justify-center gap-2 ${
-                  isPumpOn 
-                    ? 'bg-red-500 hover:bg-red-600 text-white' 
-                    : 'bg-primary hover:bg-primary/90 text-primary-foreground'
-                } disabled:opacity-50 disabled:cursor-not-allowed active:scale-95`}
+                  isPumpRunning 
+                    ? 'bg-gray-400 cursor-not-allowed text-gray-200' 
+                    : 'bg-primary hover:bg-primary/90 text-primary-foreground active:scale-95'
+                } disabled:opacity-70`}
               >
                 {isActionLoading ? (
                   <>
                     <Loader2 size={18} className="animate-spin" />
                     Memproses...
                   </>
-                ) : isPumpOn ? (
+                ) : isPumpRunning ? (
                   <>
-                    <span className="relative flex h-3 w-3 mr-2">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-3 w-3 bg-white"></span>
-                    </span>
-                    MATIKAN POMPA
+                    <Loader2 size={18} className="animate-spin" />
+                    POMPA BERJALAN
                   </>
                 ) : (
                   <>
@@ -366,21 +414,3 @@ export default function SmartFarmingPage() {
     </div>
   );
 }
-
-// function StatCard({ title, value, icon, status = "normal", type }: any) {
-//   return (
-//     <div className="card-iot">
-//       <div className="flex justify-between items-start mb-6">
-//         <div className={`icon-container ${type === 'farming' ? 'icon-container-farming' : 'icon-container-home'}`}>
-//           {icon}
-//         </div>
-//         <span className={`status-badge ${status === 'normal' ? 'status-normal' : 'status-warning'}`}>
-//           <div className="pulse-dot" />
-//           {status.toUpperCase()}
-//         </span>
-//       </div>
-//       <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">{title}</p>
-//       <h3 className="text-4xl font-black mt-1 tracking-tight">{value}</h3>
-//     </div>
-//   );
-// }
