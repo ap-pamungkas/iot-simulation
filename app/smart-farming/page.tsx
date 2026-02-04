@@ -276,34 +276,11 @@ export default function SmartFarmingPage() {
                 </div>
               )}
 
-              {/* Countdown Animation */}
-              {/* {isPumpOn && countdown > 0 && (
-                <div className="mb-6 p-4 bg-primary/10 rounded-2xl border border-primary/20">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-black text-primary uppercase">Sisa Waktu</span>
-                    <span className="text-2xl font-black text-primary tabular-nums">
-                      {Math.floor(countdown / 60).toString().padStart(2, '0')}:
-                      {(countdown % 60).toString().padStart(2, '0')}
-                    </span>
-                  </div> */}
-                  {/* Progress bar */}
-                  {/* <div className="w-full bg-primary/20 rounded-full h-2 overflow-hidden">
-                    <div 
-                      className="bg-primary h-full rounded-full transition-all duration-1000 ease-linear"
-                      style={{ 
-                        width: `${(countdown / (data?.duration || duration)) * 100}%` 
-                      }}
-                    />
-                  </div>
-                </div>
-              )} */}
+          
 
               {/* Form Input Durasi */}
               <div className="space-y-4 mb-6">
                 <div className={`p-4 rounded-2xl border border-dashed transition-colors ${isPumpOn ? 'bg-muted/50 border-muted' : 'bg-muted/30 border-border'}`}>
-                  <label className="text-[10px] font-black text-muted-foreground uppercase mb-2 block tracking-tighter">
-                    Set Waktu Siram (Detik) {isPumpOn && <span className="text-primary">*</span>}
-                  </label>
                   <div className="flex items-center gap-3">
                     <div className="relative flex-1">
                       <Timer size={18} className={`absolute left-3 top-1/2 -translate-y-1/2 ${isPumpOn ? 'text-primary' : 'text-muted-foreground'}`} />
