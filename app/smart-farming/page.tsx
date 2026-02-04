@@ -277,7 +277,7 @@ export default function SmartFarmingPage() {
               )}
 
               {/* Countdown Animation */}
-              {isPumpOn && countdown > 0 && (
+              {/* {isPumpOn && countdown > 0 && (
                 <div className="mb-6 p-4 bg-primary/10 rounded-2xl border border-primary/20">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs font-black text-primary uppercase">Sisa Waktu</span>
@@ -285,9 +285,9 @@ export default function SmartFarmingPage() {
                       {Math.floor(countdown / 60).toString().padStart(2, '0')}:
                       {(countdown % 60).toString().padStart(2, '0')}
                     </span>
-                  </div>
+                  </div> */}
                   {/* Progress bar */}
-                  <div className="w-full bg-primary/20 rounded-full h-2 overflow-hidden">
+                  {/* <div className="w-full bg-primary/20 rounded-full h-2 overflow-hidden">
                     <div 
                       className="bg-primary h-full rounded-full transition-all duration-1000 ease-linear"
                       style={{ 
@@ -296,7 +296,7 @@ export default function SmartFarmingPage() {
                     />
                   </div>
                 </div>
-              )}
+              )} */}
 
               {/* Form Input Durasi */}
               <div className="space-y-4 mb-6">
