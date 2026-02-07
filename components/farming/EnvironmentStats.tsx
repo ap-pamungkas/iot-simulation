@@ -1,12 +1,10 @@
 import { Thermometer, Droplets, Sprout } from "lucide-react";
 import StatCard from "@/components/ui/StatCard";
-
 interface EnvironmentStatsProps {
   temperature: number;
   humidity: number;
   soilMoisture: number;
 }
-
 export default function EnvironmentStats({
   temperature,
   humidity,
