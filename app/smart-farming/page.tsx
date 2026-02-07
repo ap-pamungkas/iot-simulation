@@ -2,13 +2,26 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Navbar from "@/components/Navbar";
-import { 
-  Thermometer, Droplets, Sprout, RefreshCcw, 
-  Activity, Timer, ArrowRight, Info, Loader2
+import {
+  Thermometer,
+  Droplets,
+  Sprout,
+  RefreshCcw,
+  Activity,
+  Timer,
+  ArrowRight,
+  Info,
+  Loader2,
 } from "lucide-react";
-import { 
-  XAxis, YAxis, CartesianGrid, Tooltip, 
-  ResponsiveContainer, AreaChart, Area, Line
+import {
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+  Line,
 } from "recharts";
 
 import StatCard from "@/components/ui/StatCard";
@@ -42,17 +55,17 @@ export default function SmartFarmingPage() {
       setError("");
       const res = await fetch("/api/farming");
       const result = await res.json();
-      
+
       if (result.success && result.data?.[0]) {
         const deviceData = result.data[0];
         setData(deviceData);
-        
+
         if (deviceData.pumpStatus && deviceData.duration > 0) {
           const lastSeen = new Date(deviceData.lastSeen).getTime();
           const elapsed = Math.floor((Date.now() - lastSeen) / 1000);
           const remaining = Math.max(0, deviceData.duration - elapsed);
           setCountdown(remaining);
-          
+
           if (remaining === 0 && deviceData.pumpStatus) {
             setTimeout(fetchData, 2000);
           }
@@ -117,21 +130,22 @@ export default function SmartFarmingPage() {
     const durationNum = parseInt(duration);
     setIsActionLoading(true);
     setError("");
-    
+
     try {
       const res = await fetch("/api/farming", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           deviceCode: data.deviceCode,
           pumpStatus: true,
-          duration: durationNum
+          duration: durationNum,
         }),
       });
-      
+
       const result = await res.json();
-      if (!res.ok) throw new Error(result.message || "Gagal mengupdate status pompa");
-      
+      if (!res.ok)
+        throw new Error(result.message || "Gagal mengupdate status pompa");
+
       setCountdown(durationNum);
       await fetchData();
     } catch (error: any) {
@@ -143,7 +157,11 @@ export default function SmartFarmingPage() {
     }
   };
 
-  const latestLog = data?.logs?.[0] || { temperature: 0, humidity: 0, soilMoisture: 0 };
+  const latestLog = data?.logs?.[0] || {
+    temperature: 0,
+    humidity: 0,
+    soilMoisture: 0,
+  };
   const isPumpOn = data?.pumpStatus || false;
   const isPumpRunning = isPumpOn || countdown > 0;
 
@@ -153,72 +171,92 @@ export default function SmartFarmingPage() {
   if (rawSoilValue >= 0 && rawSoilValue <= 100) {
     soilPercentage = rawSoilValue;
   } else if (rawSoilValue > 100 && rawSoilValue <= 4095) {
-    soilPercentage = Math.max(0, Math.min(100, 
-      Math.round(((rawSoilValue - 1500) / (4095 - 1500)) * 100)
-    ));
+    soilPercentage = Math.max(
+      0,
+      Math.min(100, Math.round(((rawSoilValue - 1500) / (4095 - 1500)) * 100)),
+    );
   } else {
     soilPercentage = 0;
   }
 
   // Data untuk chart dengan ketiga parameter
-  const chartData = data?.logs?.slice(0, 10).reverse().map((log: Log) => {
-    let soilValue = 0;
-    if (log.soilMoisture >= 0 && log.soilMoisture <= 100) {
-      soilValue = log.soilMoisture;
-    } else if (log.soilMoisture > 100 && log.soilMoisture <= 4095) {
-      soilValue = Math.max(0, Math.min(100, 
-        Math.round(((log.soilMoisture - 1500) / (4095 - 1500)) * 100)
-      ));
-    }
+  const chartData =
+    data?.logs
+      ?.slice(0, 10)
+      .reverse()
+      .map((log: Log) => {
+        let soilValue = 0;
+        if (log.soilMoisture >= 0 && log.soilMoisture <= 100) {
+          soilValue = log.soilMoisture;
+        } else if (log.soilMoisture > 100 && log.soilMoisture <= 4095) {
+          soilValue = Math.max(
+            0,
+            Math.min(
+              100,
+              Math.round(((log.soilMoisture - 1500) / (4095 - 1500)) * 100),
+            ),
+          );
+        }
 
-    return {
-      time: new Date(log.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      soil: soilValue,           // Hijau (0-100%)
-      humidity: log.humidity,    // Biru (0-100%)
-      temperature: log.temperature // Merah (suhu dalam °C)
-    };
-  }) || [];
+        return {
+          time: new Date(log.createdAt).toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+          soil: soilValue, // Hijau (0-100%)
+          humidity: log.humidity, // Biru (0-100%)
+          temperature: log.temperature, // Merah (suhu dalam °C)
+        };
+      }) || [];
 
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      
+
       <main className="container py-8 animate-fade-in">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-10">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Control Panel Pertanian</h1>
-            <p className="text-muted-foreground mt-1">Monitoring suhu, kelembapan, dan kontrol irigasi manual.</p>
+            <h1 className="text-3xl font-bold tracking-tight">
+              Control Panel Pertanian
+            </h1>
+            <p className="text-muted-foreground mt-1">
+              Monitoring suhu, kelembapan, dan kontrol irigasi manual.
+            </p>
           </div>
-          <button 
-            onClick={fetchData} 
+          <button
+            onClick={fetchData}
             disabled={loading}
             className="p-3 rounded-xl border border-border bg-card hover:bg-muted transition-all active:scale-95 disabled:opacity-50"
           >
-            <RefreshCcw size={20} className={loading ? "animate-spin text-primary" : "text-muted-foreground"} />
+            <RefreshCcw
+              size={20}
+              className={
+                loading ? "animate-spin text-primary" : "text-muted-foreground"
+              }
+            />
           </button>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          
           <div className="lg:col-span-2 space-y-8">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <StatCard 
-                title="Suhu Udara" 
-                value={`${latestLog.temperature}°C`} 
-                icon={<Thermometer className="text-red-500" />} 
+              <StatCard
+                title="Suhu Udara"
+                value={`${latestLog.temperature}°C`}
+                icon={<Thermometer className="text-red-500" />}
                 type="farming"
               />
-              <StatCard 
-                title="Kelembapan Udara" 
-                value={`${latestLog.humidity}%`} 
-                icon={<Droplets className="text-blue-500" />} 
+              <StatCard
+                title="Kelembapan Udara"
+                value={`${latestLog.humidity}%`}
+                icon={<Droplets className="text-blue-500" />}
                 type="home"
               />
-              <StatCard 
-                title="Kebasahan Tanah" 
-                value={`${soilPercentage}%`} 
-                icon={<Sprout className="text-green-500" />} 
-                status={soilPercentage < 30 ? "warning" : "normal"} 
+              <StatCard
+                title="Kebasahan Tanah"
+                value={`${soilPercentage}%`}
+                icon={<Sprout className="text-green-500" />}
+                status={soilPercentage < 30 ? "warning" : "normal"}
                 type="farming"
               />
             </div>
@@ -228,9 +266,11 @@ export default function SmartFarmingPage() {
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                 <div className="flex items-center gap-2">
                   <Activity size={18} className="text-primary" />
-                  <h3 className="font-bold text-lg">Tren Parameter Lingkungan (Real-time)</h3>
+                  <h3 className="font-bold text-lg">
+                    Tren Parameter Lingkungan (Real-time)
+                  </h3>
                 </div>
-                
+
                 {/* Legend */}
                 <div className="flex gap-3 text-xs font-bold">
                   <div className="flex items-center gap-1.5">
@@ -239,114 +279,194 @@ export default function SmartFarmingPage() {
                   </div>
                   <div className="flex items-center gap-1.5">
                     <div className="w-3 h-3 rounded-full bg-blue-500" />
-                    <span className="text-muted-foreground">Kelembapan Udara (%)</span>
+                    <span className="text-muted-foreground">
+                      Kelembapan Udara (%)
+                    </span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <div className="w-3 h-3 rounded-full bg-green-500" />
-                    <span className="text-muted-foreground">Kelembapan Tanah (%)</span>
+                    <span className="text-muted-foreground">
+                      Kelembapan Tanah (%)
+                    </span>
                   </div>
                 </div>
               </div>
-              
+
               <div className="h-[320px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={chartData}>
                     <defs>
                       {/* Gradient untuk Kelembapan Tanah - Hijau */}
-                      <linearGradient id="colorSoil" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#22c55e" stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor="#22c55e" stopOpacity={0}/>
+                      <linearGradient
+                        id="colorSoil"
+                        x1="0"
+                        y1="0"
+                        x2="0"
+                        y2="1"
+                      >
+                        <stop
+                          offset="5%"
+                          stopColor="#22c55e"
+                          stopOpacity={0.3}
+                        />
+                        <stop
+                          offset="95%"
+                          stopColor="#22c55e"
+                          stopOpacity={0}
+                        />
                       </linearGradient>
                       {/* Gradient untuk Kelembapan Udara - Biru */}
-                      <linearGradient id="colorHumidity" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                      <linearGradient
+                        id="colorHumidity"
+                        x1="0"
+                        y1="0"
+                        x2="0"
+                        y2="1"
+                      >
+                        <stop
+                          offset="5%"
+                          stopColor="#3b82f6"
+                          stopOpacity={0.3}
+                        />
+                        <stop
+                          offset="95%"
+                          stopColor="#3b82f6"
+                          stopOpacity={0}
+                        />
                       </linearGradient>
                       {/* Gradient untuk Suhu - Merah */}
-                      <linearGradient id="colorTemp" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
+                      <linearGradient
+                        id="colorTemp"
+                        x1="0"
+                        y1="0"
+                        x2="0"
+                        y2="1"
+                      >
+                        <stop
+                          offset="5%"
+                          stopColor="#ef4444"
+                          stopOpacity={0.3}
+                        />
+                        <stop
+                          offset="95%"
+                          stopColor="#ef4444"
+                          stopOpacity={0}
+                        />
                       </linearGradient>
                     </defs>
-                    
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-                    <XAxis 
-                      dataKey="time" 
-                      axisLine={false} 
-                      tickLine={false} 
-                      tick={{fontSize: 12, fill: 'hsl(var(--muted-foreground))'}} 
+
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      vertical={false}
+                      stroke="hsl(var(--border))"
                     />
-                    <YAxis 
+                    <XAxis
+                      dataKey="time"
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{
+                        fontSize: 12,
+                        fill: "hsl(var(--muted-foreground))",
+                      }}
+                    />
+                    <YAxis
                       yAxisId="left"
-                      axisLine={false} 
-                      tickLine={false} 
-                      tick={{fontSize: 12, fill: 'hsl(var(--muted-foreground))'}}
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{
+                        fontSize: 12,
+                        fill: "hsl(var(--muted-foreground))",
+                      }}
                       domain={[0, 100]}
-                      label={{ value: '%', angle: -90, position: 'insideLeft', style: { fill: 'hsl(var(--muted-foreground))' } }}
+                      label={{
+                        value: "%",
+                        angle: -90,
+                        position: "insideLeft",
+                        style: { fill: "hsl(var(--muted-foreground))" },
+                      }}
                     />
-                    <YAxis 
+                    <YAxis
                       yAxisId="right"
                       orientation="right"
-                      axisLine={false} 
-                      tickLine={false} 
-                      tick={{fontSize: 12, fill: 'hsl(var(--muted-foreground))'}}
-                      domain={['auto', 'auto']}
-                      label={{ value: '°C', angle: 90, position: 'insideRight', style: { fill: 'hsl(var(--muted-foreground))' } }}
-                    />
-                    
-                    <Tooltip 
-                      contentStyle={{ 
-                        backgroundColor: 'hsl(var(--card))', 
-                        borderRadius: 'var(--radius-md)', 
-                        border: '1px solid hsl(var(--border))' 
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{
+                        fontSize: 12,
+                        fill: "hsl(var(--muted-foreground))",
                       }}
-                      formatter={(value: number, name: string) => {
+                      domain={["auto", "auto"]}
+                      label={{
+                        value: "°C",
+                        angle: 90,
+                        position: "insideRight",
+                        style: { fill: "hsl(var(--muted-foreground))" },
+                      }}
+                    />
+
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "hsl(var(--card))",
+                        borderRadius: "var(--radius-md)",
+                        border: "1px solid hsl(var(--border))",
+                      }}
+                      formatter={(
+                        value: number | string | undefined,
+                        name: string | number | undefined,
+                      ) => {
                         const units: Record<string, string> = {
-                          soil: '%',
-                          humidity: '%',
-                          temperature: '°C'
+                          soil: "%",
+                          humidity: "%",
+                          temperature: "°C",
                         };
+
                         const labels: Record<string, string> = {
-                          soil: 'Kebasahan Tanah',
-                          humidity: 'Kelembapan Udara',
-                          temperature: 'Suhu'
+                          soil: "Kebasahan Tanah",
+                          humidity: "Kelembapan Udara",
+                          temperature: "Suhu",
                         };
-                        return [`${value}${units[name] || ''}`, labels[name] || name];
+
+                        // Handle cases where value might be undefined or null
+                        const displayValue = value != null ? value : "-";
+                        const nameKey = String(name);
+                        const unit = units[nameKey] || "";
+                        const label = labels[nameKey] || nameKey;
+
+                        return [`${displayValue}${unit}`, label];
                       }}
                     />
-                    
+
                     {/* Area Chart untuk Kelembapan Tanah - Hijau */}
-                    <Area 
+                    <Area
                       yAxisId="left"
-                      type="monotone" 
-                      dataKey="soil" 
+                      type="monotone"
+                      dataKey="soil"
                       name="soil"
-                      stroke="#22c55e" 
-                      fill="url(#colorSoil)" 
+                      stroke="#22c55e"
+                      fill="url(#colorSoil)"
                       strokeWidth={2}
                     />
-                    
+
                     {/* Area Chart untuk Kelembapan Udara - Biru */}
-                    <Area 
+                    <Area
                       yAxisId="left"
-                      type="monotone" 
-                      dataKey="humidity" 
+                      type="monotone"
+                      dataKey="humidity"
                       name="humidity"
-                      stroke="#3b82f6" 
-                      fill="url(#colorHumidity)" 
+                      stroke="#3b82f6"
+                      fill="url(#colorHumidity)"
                       strokeWidth={2}
                     />
-                    
+
                     {/* Line Chart untuk Suhu - Merah (menggunakan Line agar lebih terlihat bedanya) */}
-                    <Line 
+                    <Line
                       yAxisId="right"
-                      type="monotone" 
-                      dataKey="temperature" 
+                      type="monotone"
+                      dataKey="temperature"
                       name="temperature"
-                      stroke="#ef4444" 
+                      stroke="#ef4444"
                       strokeWidth={3}
-                      dot={{ fill: '#ef4444', strokeWidth: 2, r: 4 }}
-                      activeDot={{ r: 6, fill: '#ef4444' }}
+                      dot={{ fill: "#ef4444", strokeWidth: 2, r: 4 }}
+                      activeDot={{ r: 6, fill: "#ef4444" }}
                     />
                   </AreaChart>
                 </ResponsiveContainer>
@@ -356,9 +476,13 @@ export default function SmartFarmingPage() {
 
           {/* SISI KANAN: Kontrol & Konfigurasi */}
           <div className="space-y-6">
-            <div className={`card-iot border-2 transition-colors duration-300 ${isPumpRunning ? 'border-primary/50 bg-primary/5' : 'border-primary/20'}`}>
+            <div
+              className={`card-iot border-2 transition-colors duration-300 ${isPumpRunning ? "border-primary/50 bg-primary/5" : "border-primary/20"}`}
+            >
               <div className="flex items-center gap-3 mb-6">
-                <div className={`icon-container transition-all duration-300 ${isPumpRunning ? 'icon-container-farming scale-110' : 'icon-container-farming'}`}>
+                <div
+                  className={`icon-container transition-all duration-300 ${isPumpRunning ? "icon-container-farming scale-110" : "icon-container-farming"}`}
+                >
                   {isPumpRunning ? (
                     <div className="animate-pulse">
                       <ArrowRight size={22} className="text-primary" />
@@ -373,7 +497,9 @@ export default function SmartFarmingPage() {
                     {isPumpRunning ? "SEDANG MENYIRAM" : "AKSI MANUAL"}
                   </p>
                 </div>
-                <div className={`w-3 h-3 rounded-full ${isPumpRunning ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
+                <div
+                  className={`w-3 h-3 rounded-full ${isPumpRunning ? "bg-green-500 animate-pulse" : "bg-gray-400"}`}
+                />
               </div>
 
               {error && (
@@ -385,16 +511,22 @@ export default function SmartFarmingPage() {
               {isPumpRunning && countdown > 0 && (
                 <div className="mb-6 p-4 bg-primary/10 rounded-2xl border border-primary/20">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-black text-primary uppercase">Sisa Waktu</span>
+                    <span className="text-xs font-black text-primary uppercase">
+                      Sisa Waktu
+                    </span>
                     <span className="text-2xl font-black text-primary tabular-nums">
-                      {Math.floor(countdown / 60).toString().padStart(2, '0')}:
-                      {(countdown % 60).toString().padStart(2, '0')}
+                      {Math.floor(countdown / 60)
+                        .toString()
+                        .padStart(2, "0")}
+                      :{(countdown % 60).toString().padStart(2, "0")}
                     </span>
                   </div>
                   <div className="w-full bg-primary/20 rounded-full h-2 overflow-hidden">
-                    <div 
+                    <div
                       className="bg-primary h-full rounded-full transition-all duration-1000 ease-linear"
-                      style={{ width: `${(countdown / (parseInt(duration) || 5)) * 100}%` }}
+                      style={{
+                        width: `${(countdown / (parseInt(duration) || 5)) * 100}%`,
+                      }}
                     />
                   </div>
                 </div>
@@ -404,21 +536,28 @@ export default function SmartFarmingPage() {
                 <div className="mb-6 p-4 bg-yellow-100 rounded-2xl border border-yellow-300">
                   <div className="flex items-center gap-2 text-yellow-800">
                     <Loader2 size={16} className="animate-spin" />
-                    <span className="text-xs font-bold">Menyelesaikan siklus...</span>
+                    <span className="text-xs font-bold">
+                      Menyelesaikan siklus...
+                    </span>
                   </div>
                 </div>
               )}
 
               <div className="space-y-4 mb-6">
-                <div className={`p-4 rounded-2xl border border-dashed transition-colors ${isPumpRunning ? 'bg-muted/50 border-muted' : 'bg-muted/30 border-border'}`}>
+                <div
+                  className={`p-4 rounded-2xl border border-dashed transition-colors ${isPumpRunning ? "bg-muted/50 border-muted" : "bg-muted/30 border-border"}`}
+                >
                   <label className="text-[10px] font-black text-muted-foreground uppercase mb-2 block tracking-tighter">
                     Set Waktu Siram (Detik)
                   </label>
                   <div className="flex items-center gap-3">
                     <div className="relative flex-1">
-                      <Timer size={18} className={`absolute left-3 top-1/2 -translate-y-1/2 ${isPumpRunning ? 'text-primary' : 'text-muted-foreground'}`} />
-                      <input 
-                        type="text" 
+                      <Timer
+                        size={18}
+                        className={`absolute left-3 top-1/2 -translate-y-1/2 ${isPumpRunning ? "text-primary" : "text-muted-foreground"}`}
+                      />
+                      <input
+                        type="text"
                         inputMode="numeric"
                         pattern="[0-9]*"
                         value={duration}
@@ -426,9 +565,9 @@ export default function SmartFarmingPage() {
                         disabled={isPumpRunning || isActionLoading}
                         placeholder="5"
                         className={`w-full bg-background border rounded-xl py-3 pl-10 pr-4 text-lg font-black transition-all ${
-                          error && !validateDuration(duration) 
-                            ? 'border-red-500 focus:ring-2 focus:ring-red-500' 
-                            : 'border-border focus:ring-2 focus:ring-primary'
+                          error && !validateDuration(duration)
+                            ? "border-red-500 focus:ring-2 focus:ring-red-500"
+                            : "border-border focus:ring-2 focus:ring-primary"
                         } disabled:opacity-50 disabled:cursor-not-allowed`}
                       />
                     </div>
@@ -437,24 +576,28 @@ export default function SmartFarmingPage() {
                     Min: 1 detik | Max: 300 detik (5 menit)
                   </p>
                 </div>
-                
+
                 <div className="flex items-start gap-2 text-[11px] text-muted-foreground bg-accent/50 p-3 rounded-lg">
                   <Info size={14} className="shrink-0 mt-0.5" />
                   <p>
-                    {isPumpRunning 
-                      ? "Pompa sedang aktif. Tunggu hingga selesai." 
+                    {isPumpRunning
+                      ? "Pompa sedang aktif. Tunggu hingga selesai."
                       : "Pompa akan mati otomatis oleh ESP32 setelah durasi tercapai."}
                   </p>
                 </div>
               </div>
 
-              <button 
-                disabled={isPumpRunning || isActionLoading || !validateDuration(duration)}
+              <button
+                disabled={
+                  isPumpRunning ||
+                  isActionLoading ||
+                  !validateDuration(duration)
+                }
                 onClick={handleSprinkle}
                 className={`w-full py-4 px-6 rounded-2xl font-black text-sm uppercase tracking-widest transition-all duration-300 flex items-center justify-center gap-2 ${
-                  isPumpRunning 
-                    ? 'bg-gray-400 cursor-not-allowed text-gray-200' 
-                    : 'bg-primary hover:bg-primary/90 text-primary-foreground active:scale-95'
+                  isPumpRunning
+                    ? "bg-gray-400 cursor-not-allowed text-gray-200"
+                    : "bg-primary hover:bg-primary/90 text-primary-foreground active:scale-95"
                 } disabled:opacity-70`}
               >
                 {isActionLoading ? (
@@ -479,19 +622,24 @@ export default function SmartFarmingPage() {
             <div className="card-iot bg-primary text-primary-foreground">
               <div className="flex justify-between items-start">
                 <div>
-                  <h4 className="font-bold mb-1">Device: {data?.deviceCode || "FARM-001"}</h4>
+                  <h4 className="font-bold mb-1">
+                    Device: {data?.deviceCode || "FARM-001"}
+                  </h4>
                   <p className="text-xs opacity-80">
-                    Terakhir terlihat: {data?.lastSeen ? new Date(data.lastSeen).toLocaleString() : '-'}
+                    Terakhir terlihat:{" "}
+                    {data?.lastSeen
+                      ? new Date(data.lastSeen).toLocaleString()
+                      : "-"}
                   </p>
                 </div>
-                <div className={`w-2 h-2 rounded-full ${loading ? 'bg-yellow-400 animate-pulse' : 'bg-green-400'}`} />
+                <div
+                  className={`w-2 h-2 rounded-full ${loading ? "bg-yellow-400 animate-pulse" : "bg-green-400"}`}
+                />
               </div>
             </div>
           </div>
-
         </div>
       </main>
     </div>
   );
 }
-
