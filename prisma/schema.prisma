@@ -11,18 +11,17 @@ generator client {
 
 datasource db {
   provider = "postgresql"
- 
-
 }
 
 model Device {
-  id              Int         @id @default(autoincrement()) // int4 di gambar
-  deviceCode      String      @unique                       // FARM-001 di gambar
-  duration        Int         @default(0)                   // int4 di gambar
-  lastSeen        DateTime    @default(now())               // timestamp di gambar
-  pumpStatus      Boolean     @default(false)
-  
-  logs            SensorLog[]
+  id         Int      @id @default(autoincrement()) // int4 di gambar
+  deviceCode String   @unique // FARM-001 di gambar
+  duration   Int      @default(0) // int4 di gambar
+  lastSeen   DateTime @default(now()) // timestamp di gambar
+  pumpStatus Boolean  @default(false)
+
+  logs           SensorLog[]
+  irrigationLogs IrrigationLog[]
 }
 
 model SensorLog {
@@ -31,7 +30,15 @@ model SensorLog {
   temperature  Float
   humidity     Float
   soilMoisture Int
-  
-  deviceId     Int     
-  device       Device   @relation(fields: [deviceId], references: [id])
+
+  deviceId Int
+  device   Device @relation(fields: [deviceId], references: [id])
+}
+
+model IrrigationLog {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  duration  Int // Durasi penyiraman dalam detik
+  deviceId  Int
+  device    Device   @relation(fields: [deviceId], references: [id])
 }

@@ -82,6 +82,11 @@ export async function GET() {
                     orderBy: {
                         createdAt: 'desc' // Mengurutkan log dari yang terbaru
                     }
+                },
+                irrigationLogs: {
+                    orderBy: {
+                        createdAt: 'desc'
+                    }
                 }
             }
         });
@@ -144,14 +149,45 @@ export async function PATCH(req: Request) {
       );
     }
 
-    // 3. Update device
-    const updatedDevice = await prisma.device.update({
-      where: { deviceCode },
-      data: {
-        pumpStatus: pumpStatus,
-        duration: typeof duration === "number" ? duration : device.duration,
-        lastSeen: new Date(),
-      },
+    // 2.5 Cek apakah device aktif (online)
+    // Anggap device mati jika tidak ada "lastSeen" diperbarui > 1 menit (atau sesuaikan)
+    const MAX_OFFLINE_DURATION = 60 * 1000; // 1 menit toleransi
+    const lastSeenTime = new Date(device.lastSeen).getTime();
+    const now = Date.now();
+
+    if (now - lastSeenTime > MAX_OFFLINE_DURATION) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: `Device ${deviceCode} sedang offline/tidak aktif. Terakhir terlihat: ${new Date(device.lastSeen).toLocaleString()}`,
+        },
+        { status: 408 } // 408 Request Timeout atau 503 Service Unavailable
+      );
+    }
+
+    // 3. Update device & Catat Log Irigasi jika menyala
+    const updatedDevice = await prisma.$transaction(async (tx) => {
+      const dev = await tx.device.update({
+        where: { deviceCode },
+        data: {
+          pumpStatus: pumpStatus,
+          duration: typeof duration === "number" ? duration : device.duration,
+          lastSeen: new Date(),
+        },
+      });
+
+      // Jika pompa dinyalakan, catat ke IrrigationLog
+      if (pumpStatus === true) {
+        await tx.irrigationLog.create({
+          data: {
+            deviceId: dev.id,
+            duration: dev.duration,
+            createdAt: new Date(),
+          },
+        });
+      }
+
+      return dev;
     });
 
     return NextResponse.json(
