@@ -1,4 +1,12 @@
-export default function StatCard({ title, value, icon, status = "normal", type }: any) {
+interface StatCardProps {
+  title: string;
+  value: string;
+  icon: React.ReactNode;
+  status?: "normal" | "warning";
+  type: "farming" | "home";
+}
+
+export default function StatCard({ title, value, icon, status = "normal", type }: StatCardProps) {
   return (
     <div className="card-iot">
       <div className="flex justify-between items-start mb-6">

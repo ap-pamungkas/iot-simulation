@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { 
   XAxis, YAxis, CartesianGrid, Tooltip, 
-  ResponsiveContainer, AreaChart, Area 
+  ResponsiveContainer, AreaChart, Area, Line
 } from "recharts";
 
 import StatCard from "@/components/ui/StatCard";
@@ -16,7 +16,7 @@ import StatCard from "@/components/ui/StatCard";
 interface Log {
   temperature: number;
   humidity: number;
-  soilMoisture: number; // Bisa dalam format raw (0-4095) atau sudah persen (0-100)
+  soilMoisture: number;
   createdAt: string;
 }
 
@@ -36,7 +36,6 @@ export default function SmartFarmingPage() {
   const [countdown, setCountdown] = useState<number>(0);
   const [error, setError] = useState<string>("");
 
-  // Fetch data dengan error handling
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
@@ -48,14 +47,12 @@ export default function SmartFarmingPage() {
         const deviceData = result.data[0];
         setData(deviceData);
         
-        // Jika pompa aktif di backend, sync countdown
         if (deviceData.pumpStatus && deviceData.duration > 0) {
           const lastSeen = new Date(deviceData.lastSeen).getTime();
           const elapsed = Math.floor((Date.now() - lastSeen) / 1000);
           const remaining = Math.max(0, deviceData.duration - elapsed);
           setCountdown(remaining);
           
-          // Jika sudah habis tapi backend masih bilang ON, force refresh
           if (remaining === 0 && deviceData.pumpStatus) {
             setTimeout(fetchData, 2000);
           }
@@ -71,35 +68,26 @@ export default function SmartFarmingPage() {
     }
   }, []);
 
-  // Polling interval
   useEffect(() => {
     fetchData();
-    
     const intervalTime = countdown > 0 ? 1000 : 30000;
     const interval = setInterval(fetchData, intervalTime);
-    
     return () => clearInterval(interval);
   }, [countdown, fetchData]);
 
-  // Local countdown timer (visual only)
   useEffect(() => {
     let timer: NodeJS.Timeout;
-    
     if (countdown > 0) {
       timer = setInterval(() => {
         setCountdown((prev) => {
-          if (prev <= 1) {
-            return 0;
-          }
+          if (prev <= 1) return 0;
           return prev - 1;
         });
       }, 1000);
     }
-    
     return () => clearInterval(timer);
   }, [countdown]);
 
-  // Validasi input durasi
   const validateDuration = (value: string): boolean => {
     if (!value || value.trim() === "") return false;
     const num = parseInt(value);
@@ -111,11 +99,7 @@ export default function SmartFarmingPage() {
 
   const handleDurationChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
-    
-    if (value !== "" && !/^\d+$/.test(value)) {
-      return;
-    }
-    
+    if (value !== "" && !/^\d+$/.test(value)) return;
     setDuration(value);
     setError("");
   };
@@ -125,15 +109,12 @@ export default function SmartFarmingPage() {
       setError("Durasi wajib diisi dengan angka (1-300 detik)");
       return;
     }
-
     if (!data?.deviceCode) {
       setError("Device tidak tersedia");
       return;
     }
 
     const durationNum = parseInt(duration);
-    
-    // PERUBAHAN: Selalu ON, tidak toggle
     setIsActionLoading(true);
     setError("");
     
@@ -143,23 +124,16 @@ export default function SmartFarmingPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           deviceCode: data.deviceCode,
-          pumpStatus: true, // SELALU true untuk menyalakan
+          pumpStatus: true,
           duration: durationNum
         }),
       });
       
       const result = await res.json();
+      if (!res.ok) throw new Error(result.message || "Gagal mengupdate status pompa");
       
-      if (!res.ok) {
-        throw new Error(result.message || "Gagal mengupdate status pompa");
-      }
-      
-      // Set countdown
       setCountdown(durationNum);
-      
-      // Refresh data
       await fetchData();
-      
     } catch (error: any) {
       console.error("Gagal kontrol pompa:", error);
       setError(error.message || "Gagal mengontrol pompa");
@@ -170,53 +144,46 @@ export default function SmartFarmingPage() {
   };
 
   const latestLog = data?.logs?.[0] || { temperature: 0, humidity: 0, soilMoisture: 0 };
-  
   const isPumpOn = data?.pumpStatus || false;
-  const isPumpRunning = isPumpOn || countdown > 0; // Gabungkan status backend dan local countdown
-  
-  // PERBAIKAN KONVERSI SOIL MOISTURE
-  // Cek apakah nilai sudah dalam persen (0-100) atau masih raw (0-4095)
+  const isPumpRunning = isPumpOn || countdown > 0;
+
+  // Konversi soil moisture
   const rawSoilValue = latestLog.soilMoisture;
   let soilPercentage: number;
-  
   if (rawSoilValue >= 0 && rawSoilValue <= 100) {
-    // Sudah dalam format persen (0-100)
     soilPercentage = rawSoilValue;
   } else if (rawSoilValue > 100 && rawSoilValue <= 4095) {
-    // Format raw P34 (1500 = kering/0%, 4095 = basah/100%)
     soilPercentage = Math.max(0, Math.min(100, 
       Math.round(((rawSoilValue - 1500) / (4095 - 1500)) * 100)
     ));
   } else {
-    // Error/invalid value
     soilPercentage = 0;
   }
 
+  // Data untuk chart dengan ketiga parameter
   const chartData = data?.logs?.slice(0, 10).reverse().map((log: Log) => {
-    let soilValue: number;
-    
+    let soilValue = 0;
     if (log.soilMoisture >= 0 && log.soilMoisture <= 100) {
       soilValue = log.soilMoisture;
     } else if (log.soilMoisture > 100 && log.soilMoisture <= 4095) {
       soilValue = Math.max(0, Math.min(100, 
         Math.round(((log.soilMoisture - 1500) / (4095 - 1500)) * 100)
       ));
-    } else {
-      soilValue = 0;
     }
-    
+
     return {
       time: new Date(log.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      soil: soilValue
+      soil: soilValue,           // Hijau (0-100%)
+      humidity: log.humidity,    // Biru (0-100%)
+      temperature: log.temperature // Merah (suhu dalam °C)
     };
-  });
+  }) || [];
 
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
       
       <main className="container py-8 animate-fade-in">
-        {/* Header Dashboard */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-10">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Control Panel Pertanian</h1>
@@ -233,34 +200,154 @@ export default function SmartFarmingPage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           
-          {/* SISI KIRI: Monitoring Sensors */}
           <div className="lg:col-span-2 space-y-8">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <StatCard title="Suhu Udara" value={`${latestLog.temperature}°C`} icon={<Thermometer />} type="farming" />
-              <StatCard title="Kelembapan Udara" value={`${latestLog.humidity}%`} icon={<Droplets />} type="home" />
-              <StatCard title="Kelembapan Tanah" value={`${soilPercentage}%`} icon={<Sprout />} status={soilPercentage < 30 ? "warning" : "normal"} type="farming" />
+              <StatCard 
+                title="Suhu Udara" 
+                value={`${latestLog.temperature}°C`} 
+                icon={<Thermometer className="text-red-500" />} 
+                type="farming"
+              />
+              <StatCard 
+                title="Kelembapan Udara" 
+                value={`${latestLog.humidity}%`} 
+                icon={<Droplets className="text-blue-500" />} 
+                type="home"
+              />
+              <StatCard 
+                title="Kebasahan Tanah" 
+                value={`${soilPercentage}%`} 
+                icon={<Sprout className="text-green-500" />} 
+                status={soilPercentage < 30 ? "warning" : "normal"} 
+                type="farming"
+              />
             </div>
 
-            {/* Grafik Kelembapan Tanah */}
+            {/* GRAFIK KOMBINASI - 3 Data Sekaligus */}
             <div className="card-iot">
-              <div className="flex items-center gap-2 mb-8">
-                <Activity size={18} className="text-primary" />
-                <h3 className="font-bold text-lg">Tren Kelembapan Tanah (Real-time)</h3>
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                <div className="flex items-center gap-2">
+                  <Activity size={18} className="text-primary" />
+                  <h3 className="font-bold text-lg">Tren Parameter Lingkungan (Real-time)</h3>
+                </div>
+                
+                {/* Legend */}
+                <div className="flex gap-3 text-xs font-bold">
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-3 h-3 rounded-full bg-red-500" />
+                    <span className="text-muted-foreground">Suhu (°C)</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-3 h-3 rounded-full bg-blue-500" />
+                    <span className="text-muted-foreground">Kelembapan Udara (%)</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-3 h-3 rounded-full bg-green-500" />
+                    <span className="text-muted-foreground">Kelembapan Tanah (%)</span>
+                  </div>
+                </div>
               </div>
-              <div className="h-[300px] w-full">
+              
+              <div className="h-[320px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={chartData}>
                     <defs>
+                      {/* Gradient untuk Kelembapan Tanah - Hijau */}
                       <linearGradient id="colorSoil" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.2}/>
-                        <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
+                        <stop offset="5%" stopColor="#22c55e" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#22c55e" stopOpacity={0}/>
+                      </linearGradient>
+                      {/* Gradient untuk Kelembapan Udara - Biru */}
+                      <linearGradient id="colorHumidity" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                      </linearGradient>
+                      {/* Gradient untuk Suhu - Merah */}
+                      <linearGradient id="colorTemp" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
                       </linearGradient>
                     </defs>
+                    
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-                    <XAxis dataKey="time" axisLine={false} tickLine={false} tick={{fontSize: 12, fill: 'hsl(var(--muted-foreground))'}} />
-                    <YAxis axisLine={false} tickLine={false} tick={{fontSize: 12, fill: 'hsl(var(--muted-foreground))'}} />
-                    <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', borderRadius: 'var(--radius-md)', border: '1px solid hsl(var(--border))' }} />
-                    <Area type="monotone" dataKey="soil" name="Kelembapan" stroke="hsl(var(--primary))" fill="url(#colorSoil)" strokeWidth={3} />
+                    <XAxis 
+                      dataKey="time" 
+                      axisLine={false} 
+                      tickLine={false} 
+                      tick={{fontSize: 12, fill: 'hsl(var(--muted-foreground))'}} 
+                    />
+                    <YAxis 
+                      yAxisId="left"
+                      axisLine={false} 
+                      tickLine={false} 
+                      tick={{fontSize: 12, fill: 'hsl(var(--muted-foreground))'}}
+                      domain={[0, 100]}
+                      label={{ value: '%', angle: -90, position: 'insideLeft', style: { fill: 'hsl(var(--muted-foreground))' } }}
+                    />
+                    <YAxis 
+                      yAxisId="right"
+                      orientation="right"
+                      axisLine={false} 
+                      tickLine={false} 
+                      tick={{fontSize: 12, fill: 'hsl(var(--muted-foreground))'}}
+                      domain={['auto', 'auto']}
+                      label={{ value: '°C', angle: 90, position: 'insideRight', style: { fill: 'hsl(var(--muted-foreground))' } }}
+                    />
+                    
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: 'hsl(var(--card))', 
+                        borderRadius: 'var(--radius-md)', 
+                        border: '1px solid hsl(var(--border))' 
+                      }}
+                      formatter={(value: number, name: string) => {
+                        const units: Record<string, string> = {
+                          soil: '%',
+                          humidity: '%',
+                          temperature: '°C'
+                        };
+                        const labels: Record<string, string> = {
+                          soil: 'Kebasahan Tanah',
+                          humidity: 'Kelembapan Udara',
+                          temperature: 'Suhu'
+                        };
+                        return [`${value}${units[name] || ''}`, labels[name] || name];
+                      }}
+                    />
+                    
+                    {/* Area Chart untuk Kelembapan Tanah - Hijau */}
+                    <Area 
+                      yAxisId="left"
+                      type="monotone" 
+                      dataKey="soil" 
+                      name="soil"
+                      stroke="#22c55e" 
+                      fill="url(#colorSoil)" 
+                      strokeWidth={2}
+                    />
+                    
+                    {/* Area Chart untuk Kelembapan Udara - Biru */}
+                    <Area 
+                      yAxisId="left"
+                      type="monotone" 
+                      dataKey="humidity" 
+                      name="humidity"
+                      stroke="#3b82f6" 
+                      fill="url(#colorHumidity)" 
+                      strokeWidth={2}
+                    />
+                    
+                    {/* Line Chart untuk Suhu - Merah (menggunakan Line agar lebih terlihat bedanya) */}
+                    <Line 
+                      yAxisId="right"
+                      type="monotone" 
+                      dataKey="temperature" 
+                      name="temperature"
+                      stroke="#ef4444" 
+                      strokeWidth={3}
+                      dot={{ fill: '#ef4444', strokeWidth: 2, r: 4 }}
+                      activeDot={{ r: 6, fill: '#ef4444' }}
+                    />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
@@ -295,7 +382,6 @@ export default function SmartFarmingPage() {
                 </div>
               )}
 
-              {/* Countdown Display */}
               {isPumpRunning && countdown > 0 && (
                 <div className="mb-6 p-4 bg-primary/10 rounded-2xl border border-primary/20">
                   <div className="flex items-center justify-between mb-2">
@@ -308,15 +394,12 @@ export default function SmartFarmingPage() {
                   <div className="w-full bg-primary/20 rounded-full h-2 overflow-hidden">
                     <div 
                       className="bg-primary h-full rounded-full transition-all duration-1000 ease-linear"
-                      style={{ 
-                        width: `${(countdown / (parseInt(duration) || 5)) * 100}%` 
-                      }}
+                      style={{ width: `${(countdown / (parseInt(duration) || 5)) * 100}%` }}
                     />
                   </div>
                 </div>
               )}
 
-              {/* Status jika pompa ON tapi countdown habis (menunggu backend sync) */}
               {isPumpOn && countdown === 0 && (
                 <div className="mb-6 p-4 bg-yellow-100 rounded-2xl border border-yellow-300">
                   <div className="flex items-center gap-2 text-yellow-800">
@@ -326,7 +409,6 @@ export default function SmartFarmingPage() {
                 </div>
               )}
 
-              {/* Form Input Durasi */}
               <div className="space-y-4 mb-6">
                 <div className={`p-4 rounded-2xl border border-dashed transition-colors ${isPumpRunning ? 'bg-muted/50 border-muted' : 'bg-muted/30 border-border'}`}>
                   <label className="text-[10px] font-black text-muted-foreground uppercase mb-2 block tracking-tighter">
@@ -366,7 +448,6 @@ export default function SmartFarmingPage() {
                 </div>
               </div>
 
-              {/* Tombol Aksi - DISABLED saat pompa running */}
               <button 
                 disabled={isPumpRunning || isActionLoading || !validateDuration(duration)}
                 onClick={handleSprinkle}
@@ -395,7 +476,6 @@ export default function SmartFarmingPage() {
               </button>
             </div>
 
-            {/* Info Device Card */}
             <div className="card-iot bg-primary text-primary-foreground">
               <div className="flex justify-between items-start">
                 <div>
@@ -414,3 +494,4 @@ export default function SmartFarmingPage() {
     </div>
   );
 }
+
