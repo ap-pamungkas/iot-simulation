@@ -11,7 +11,7 @@ export async function POST(request: Request) {
     // Connect to the MQTT broker
     const client = mqtt.connect(MQTT_BROKER);
 
-    return new Promise((resolve) => {
+    return new Promise<NextResponse>((resolve, reject) => {
         client.on("connect", () => {
             console.log("Connected to MQTT Broker");
             
