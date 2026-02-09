@@ -1,8 +1,8 @@
 import mqtt from "mqtt";
 import { NextResponse } from "next/server";
 
-const MQTT_BROKER = "mqtt://broker.emqx.io";
-const MQTT_TOPIC = "iot-simulation/relay";
+const MQTT_BROKER = process.env.MQTT_BROKER || "mqtt://broker.emqx.io";
+const MQTT_TOPIC = process.env.MQTT_TOPIC || "iot-simulation/relay";
 
 export async function POST(request: Request) {
   try {
