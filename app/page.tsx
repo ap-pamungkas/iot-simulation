@@ -1,4 +1,4 @@
-import { Activity, ArrowRight, Cpu, HomeIcon, Leaf } from "lucide-react";
+import { Activity, ArrowRight, Cpu, Leaf } from "lucide-react";
 import Link from "next/link";
 import Navbar from "../components/Navbar";
 
@@ -26,7 +26,7 @@ export default function Home() {
             </p>
           </div>
 
-          {/* Feature Cards */}
+          {/* Feature Cards - 2 Columns Grid */}
           <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
             {/* Smart Farming Card */}
             <Link
@@ -51,26 +51,28 @@ export default function Home() {
                 </div>
               </div>
             </Link>
-            {/* Smart Home Card */}
+
+            {/* Relay Simulation Card - Matching Design */}
             <Link
-              href="/smart-home"
+              href="/relay"
               className="group relative overflow-hidden rounded-3xl bg-card p-8 shadow-card hover:shadow-lg transition-all duration-300 hover:-translate-y-1"
             >
-              <div className="absolute inset-0 gradient-home opacity-50" />
+              <div className="absolute inset-0 bg-yellow-400/10 opacity-50" />
               <div className="relative">
-                <div className="w-16 h-16 rounded-2xl gradient-secondary flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
-                  <HomeIcon className="w-8 h-8 text-secondary-foreground" />
+                <div className="w-16 h-16 rounded-2xl bg-yellow-400/20 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
+                  <Cpu className="w-8 h-8 text-yellow-600" />
                 </div>
 
                 <h2 className="text-2xl font-bold text-foreground mb-3">
-                  Smart Home
+                  Simulasi Relay (Dasar IoT)
                 </h2>
                 <p className="text-muted-foreground mb-6">
-                  Kontrol lampu, AC, sensor pintu dan gerak untuk rumah pintar
-                  yang terintegrasi.
+                  Belajar konsep dasar IoT dengan mengontrol lampu dari jarak
+                  jauh. Cocok untuk pemula!
                 </p>
-                <div className="flex items-center gap-2 text-secondary font-medium group-hover:gap-4 transition-all">
-                  <span>Lihat Dashboard</span>
+
+                <div className="flex items-center gap-2 text-yellow-600 font-medium group-hover:gap-4 transition-all">
+                  <span>Coba Sekarang</span>
                   <ArrowRight className="w-4 h-4" />
                 </div>
               </div>
