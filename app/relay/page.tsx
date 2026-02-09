@@ -80,7 +80,7 @@ export default function RelayPage() {
           <button
             onClick={() => handleRelay("on")}
             disabled={loading}
-            className={`w-full md:w-48 h-48 rounded-3xl flex flex-col items-center justify-center gap-4 transition-all duration-300 shadow-xl border-b-8 active:border-b-0 active:translate-y-2 ${
+            className={`w-full md:w-48 h-48 cursor-pointer rounded-3xl flex flex-col items-center justify-center gap-4 transition-all duration-300 shadow-xl border-b-8 active:border-b-0 active:translate-y-2 ${
               relayState === "on"
                 ? "bg-yellow-400 border-yellow-600 text-yellow-900"
                 : "bg-gray-100 border-gray-300 text-gray-400 hover:bg-gray-200"
@@ -95,7 +95,7 @@ export default function RelayPage() {
           <button
             onClick={() => handleRelay("off")}
             disabled={loading}
-            className={`w-full md:w-48 h-48 rounded-3xl flex flex-col items-center justify-center gap-4 transition-all duration-300 shadow-xl border-b-8 active:border-b-0 active:translate-y-2 ${
+            className={`w-full md:w-48 h-48 cursor-pointer rounded-3xl flex flex-col items-center justify-center gap-4 transition-all duration-300 shadow-xl border-b-8 active:border-b-0 active:translate-y-2 ${
               relayState === "off"
                 ? "bg-red-500 border-red-700 text-white"
                 : "bg-gray-100 border-gray-300 text-gray-400 hover:bg-gray-200"
