@@ -17,7 +17,7 @@ export async function POST(req: Request) {
       typeof temp !== "number" ||
       humidity === undefined ||
       soilMoisture === undefined ||
-      !deviceCode
+      !deviceCode 
     ) {
       return NextResponse.json(
         { message: "Data tidak valid atau tidak lengkap" },
@@ -48,11 +48,21 @@ export async function POST(req: Request) {
       },
     });
 
+    const updatedDevice = await prisma.device.update({
+      where: { deviceCode },
+      data: {
+        lastSeen: new Date(),
+      },
+    });
+
     return NextResponse.json(
       {
         success: true,
         message: "Data sensor berhasil disimpan!",
-        data: log,
+        data: {
+          log,
+          updatedDevice,
+        },
       },
       { status: 201 }
     );

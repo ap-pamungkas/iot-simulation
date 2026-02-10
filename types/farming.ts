@@ -15,7 +15,7 @@ export interface DeviceData {
   deviceCode: string;
   pumpStatus: boolean;
   duration: number;
-  lastSeen: string;
+  lastSeen: Date;
   logs: Log[];
   irrigationLogs: IrrigationLog[];
 }
