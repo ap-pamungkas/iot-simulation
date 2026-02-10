@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Power, Lightbulb } from "lucide-react";
 import Link from "next/link";
+import Navbar from "@/components/Navbar";
 
 export default function RelayPage() {
   const [loading, setLoading] = useState(false);
@@ -32,15 +33,7 @@ export default function RelayPage() {
   return (
     <div className="min-h-screen bg-white text-gray-900 font-sans">
       {/* Navbar / Header Simple */}
-      <div className="p-6 border-b border-gray-100 flex items-center justify-between container mx-auto">
-        <Link
-          href="/"
-          className="font-bold text-xl text-blue-600 hover:opacity-80 flex items-center gap-2"
-        >
-          ← Kembali ke Beranda
-        </Link>
-        <span className="font-semibold text-gray-500">Pelajaran IoT Dasar</span>
-      </div>
+      <Navbar />
 
       <div className="container mx-auto px-4 py-12 max-w-2xl">
         <div className="text-center mb-12">
