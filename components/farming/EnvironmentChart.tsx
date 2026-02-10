@@ -9,11 +9,13 @@ import {
   Area,
   Line,
   ReferenceArea,
+  ReferenceLine,
 } from "recharts";
-import { Log } from "@/types/farming";
+import { Log, IrrigationLog } from "@/types/farming";
 
 interface EnvironmentChartProps {
   logs: Log[];
+  irrigationLogs?: IrrigationLog[];
   isPumpOn: boolean;
   pumpStartTime?: number;
   pumpDuration?: number;
@@ -21,6 +23,7 @@ interface EnvironmentChartProps {
 
 export default function EnvironmentChart({
   logs,
+  irrigationLogs = [],
   isPumpOn,
   pumpStartTime,
   pumpDuration,
@@ -56,36 +59,28 @@ export default function EnvironmentChart({
         };
       }) || [];
 
-  // Irrigation Area Logic
-  let irrigationStartIndex = -1;
-  let irrigationEndIndex = -1;
+  const pumpEndTime =
+    isPumpOn && pumpStartTime && pumpDuration
+      ? pumpStartTime + pumpDuration * 1000
+      : null;
 
-  if (isPumpOn && pumpStartTime && pumpDuration) {
-    const pumpEndTime = pumpStartTime + pumpDuration * 1000;
+  const validPumpStart = isPumpOn && pumpStartTime ? pumpStartTime : null;
 
-    chartData.forEach((d, index) => {
-      if (
-        d.originalTime >= pumpStartTime - 2000 &&
-        d.originalTime <= pumpEndTime + 2000
-      ) {
-        if (irrigationStartIndex === -1) irrigationStartIndex = index;
-        irrigationEndIndex = index;
-      }
+  const validPumpEnd = isPumpOn && pumpEndTime ? pumpEndTime : null;
+
+  const formatXAxis = (tickItem: number) => {
+    return new Date(tickItem).toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
     });
+  };
 
-    if (irrigationStartIndex === -1 && chartData.length > 0) {
-      const lastDataTime = chartData[chartData.length - 1].originalTime;
-      if (pumpStartTime >= lastDataTime - 5000) {
-        irrigationStartIndex = chartData.length - 1;
-        irrigationEndIndex = chartData.length - 1;
-      }
-    }
-  }
-
-  const irrigationAreaStart =
-    irrigationStartIndex !== -1 ? chartData[irrigationStartIndex].time : null;
-  const irrigationAreaEnd =
-    irrigationEndIndex !== -1 ? chartData[irrigationEndIndex].time : null;
+  // Calculate domain based on sensor logs only to prevent old irrigation logs from stretching the chart
+  const minTime = chartData.length > 0 ? chartData[0].originalTime : "auto";
+  const maxTime =
+    chartData.length > 0
+      ? chartData[chartData.length - 1].originalTime
+      : "auto";
 
   return (
     <div className="card-iot">
@@ -116,6 +111,13 @@ export default function EnvironmentChart({
               <span className="text-blue-600">Area Penyiraman</span>
             </div>
           )}
+          <div className="flex items-center gap-1.5">
+            <div
+              className="w-3 h-3 border border-transparent"
+              style={{ backgroundColor: "#C29595" }}
+            />
+            <span className="text-muted-foreground">Riwayat Penyiraman</span>
+          </div>
         </div>
       </div>
 
@@ -143,7 +145,10 @@ export default function EnvironmentChart({
               stroke="hsl(var(--border))"
             />
             <XAxis
-              dataKey="time"
+              dataKey="originalTime"
+              type="number"
+              domain={[minTime, maxTime]}
+              tickFormatter={formatXAxis}
               axisLine={false}
               tickLine={false}
               tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
@@ -177,6 +182,7 @@ export default function EnvironmentChart({
             />
 
             <Tooltip
+              labelFormatter={(label) => formatXAxis(label as number)}
               contentStyle={{
                 backgroundColor: "hsl(var(--card))",
                 borderRadius: "var(--radius-md)",
@@ -204,23 +210,68 @@ export default function EnvironmentChart({
               }}
             />
 
-            {isPumpOn && irrigationAreaStart && irrigationAreaEnd && (
-              <ReferenceArea
-                yAxisId="left"
-                x1={irrigationAreaStart}
-                x2={irrigationAreaEnd}
-                fill="#3b82f6"
-                fillOpacity={0.15}
-                stroke="#3b82f6"
-                strokeDasharray="3 3"
-                strokeOpacity={0.5}
-                label={{
-                  value: "Disiram",
-                  position: "insideTop",
-                  fill: "#2563eb",
-                  fontSize: 10,
-                }}
-              />
+            {/* Render Past Irrigation Logs */}
+            {irrigationLogs.map((log) => {
+              const start = new Date(log.createdAt).getTime();
+              const end = start + log.duration * 1000;
+              // Only render if within relevant range (simple check, recharts handles clipping but this is safer)
+              if (
+                typeof minTime === "number" &&
+                typeof maxTime === "number" &&
+                end < minTime - 60000 // Only skip if waaaay in the past
+              ) {
+                return null;
+              }
+              return (
+                <ReferenceArea
+                  key={log.id}
+                  yAxisId="left"
+                  x1={start}
+                  x2={end}
+                  fill="#C29595"
+                  fillOpacity={0.2}
+                  strokeOpacity={0}
+                  ifOverflow="hidden" // Clip invalid areas
+                />
+              );
+            })}
+
+            {validPumpStart && validPumpEnd && (
+              <>
+                <ReferenceArea
+                  yAxisId="left"
+                  x1={validPumpStart}
+                  x2={validPumpEnd}
+                  fill="#3b82f6"
+                  fillOpacity={0.15}
+                  strokeOpacity={0}
+                  ifOverflow="extendDomain"
+                />
+                <ReferenceLine
+                  x={validPumpStart}
+                  stroke="#3b82f6"
+                  strokeDasharray="3 3"
+                  ifOverflow="extendDomain"
+                  label={{
+                    value: "Start",
+                    position: "insideTopLeft",
+                    fill: "#2563eb",
+                    fontSize: 10,
+                  }}
+                />
+                <ReferenceLine
+                  x={validPumpEnd}
+                  stroke="#3b82f6"
+                  strokeDasharray="3 3"
+                  ifOverflow="extendDomain"
+                  label={{
+                    value: "End",
+                    position: "insideTopRight",
+                    fill: "#2563eb",
+                    fontSize: 10,
+                  }}
+                />
+              </>
             )}
 
             <Area

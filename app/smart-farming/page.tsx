@@ -86,6 +86,7 @@ export default function SmartFarmingPage() {
 
             <EnvironmentChart
               logs={data?.logs || []}
+              irrigationLogs={data?.irrigationLogs || []}
               isPumpOn={isPumpOn}
               pumpStartTime={
                 data?.lastSeen ? new Date(data.lastSeen).getTime() : undefined

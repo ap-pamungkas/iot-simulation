@@ -8,7 +8,7 @@ export interface Log {
 export interface IrrigationLog {
   id: string;
   duration: number;
-  createdAt: string;
+  createdAt: Date;
 }
 
 export interface DeviceData {
