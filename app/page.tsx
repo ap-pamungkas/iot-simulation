@@ -20,9 +20,9 @@ export default function Home() {
             </h1>
 
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              Platform simulasi visual untuk monitoring Smart Farming dan Smart
-              Home. Visualisasi data sensor dan kontrol perangkat dalam satu
-              dashboard terintegrasi.
+              Platform simulasi visual untuk monitoring Remote Farming.
+              Visualisasi data sensor dan kontrol perangkat dalam satu dashboard
+              terintegrasi.
             </p>
           </div>
 
@@ -39,7 +39,7 @@ export default function Home() {
                   <Leaf className="w-8 h-8 text-primary-foreground" />
                 </div>
                 <h2 className="text-2xl font-bold text-foreground mb-3">
-                  Smart Farming
+                  Remote Farming
                 </h2>
                 <p className="text-muted-foreground mb-6">
                   Monitoring suhu, kelembapan udara dan kebasahan tanah.
