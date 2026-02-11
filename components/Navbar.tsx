@@ -38,7 +38,7 @@ const Navbar = () => {
               className={getLinkStyles("/smart-farming")}
             >
               <Leaf className="w-4 h-4" />
-              <span className="hidden sm:inline">Smart Farming</span>
+              <span className="hidden sm:inline">Remote Farming</span>
             </Link>
 
             <Link href="/relay" className={getLinkStyles("/relay")}>
